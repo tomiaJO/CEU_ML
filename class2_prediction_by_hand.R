@@ -59,6 +59,7 @@ bikeTrain[quarter == "Q1", prediction_model_by_quarter := 71.90552]
 bikeTrain[quarter == "Q2", prediction_model_by_quarter := 160.94075]
 bikeTrain[quarter == "Q3", prediction_model_by_quarter := 186.99487]
 bikeTrain[quarter == "Q4", prediction_model_by_quarter := 154.78713]
+bikeTrain[, prediction_model_by_quarter_smart := mean(count), by = quarter]
 RootMeanSquaredError(bikeTrain$count, bikeTrain$prediction_model_by_quarter)
 
 # Stages of the previous block: idea, model fit and model evaluation
@@ -71,3 +72,11 @@ ModelByQuarter <- function(train, test) {
 }
 
 RootMeanSquaredError(bikeTrain$count, ModelByQuarter(bikeTrain, bikeTrain))
+
+bikeTrain[, prediction_by_own_model := mean(count), by = .(quarter, workingday, hour, weather, atemp)]
+RootMeanSquaredError(bikeTrain$count, bikeTrain$prediction_by_own_model)
+
+ggplot(bikeTrain, aes(x = count, y = prediction_by_own_model)) + 
+  geom_point(alpha = .2)
+
+
