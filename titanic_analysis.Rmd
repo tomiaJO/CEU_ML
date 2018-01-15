@@ -1,0 +1,88 @@
+---
+title: "R Notebook"
+output:
+  html_notebook:
+    df_print: paged
+  html_document:
+    df_print: paged
+---
+```{r}
+library(data.table)
+library(ggplot2)
+library(titanic)
+```
+
+```{r}
+str(titanic_train)
+```
+
+```{r}
+dt <- data.table(titanic_train)
+dt[Sex == "female"]
+dt[, .(Name, Survived)]
+dt[, SurvivedInfo := ifelse(Survived == 1, "survived", "did not survive")]
+```
+
+```{r}
+head(dt)
+```
+
+```{r}
+dt[, SurvivedInfo := NULL]
+```
+
+### !missed wide - long transformation part
+
+#### for cycle:
+```{r}
+numbers <- c(1:5)
+
+for(n in numbers) {
+  print(n^2)
+}
+```
+
+  
+  
+#### data viz
+
+Trying with a simple prediction (logistic regression) for survival
+
+
+```{r}
+model <- glm(Survived ~ Fare + Sex, data = dt, family = binomial) # family --> define it's a logistic regression for modeling
+prediction <- predict.glm(model, newdata = dt, type = "response") # type --> same for prediction
+
+
+summary(prediction) # check that results are meaningful ( 0 - 1 )
+
+dt[, SurvivedScore := prediction]
+
+mean(dt$SurvivedScore)
+mean(dt$Survived)
+
+dt[, SurvivedScoreCategory := cut(SurvivedScore, seq(0, 1, 0.1))]
+str(dt[, SurvivedScoreCategory])
+```
+
+```{r}
+calibration <- dt[, .(mean_score = mean(SurvivedScore),
+                      mean_survival = mean(Survived),
+                      num_people = .N
+                      ), 
+                  keyby = SurvivedScoreCategory]
+```
+
+```{r}
+ggplot(data = calibration, aes(x = mean_score, y = mean_survival, size = num_people)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed")
+```
+
+```{r}
+head(dt)
+```
+
+
+notes:
+
