@@ -52,16 +52,44 @@ No impact on the dataset in this case. The step could be used to avoid cases whe
 ```{r}
 data <- data[, Gender := ifelse(Gender == "Male", "Male",
                               ifelse(Gender == "Female", "Female", "Other"))]
-
-unique(data$Gender)
 ```
+
+In the original dataset, there were 20 different gender codes - the above reduces this to three (by bucketing everything that's not either "Male" or "Female" as "Other").
 
 ```{r}
 large_countries <- data[, .N, by = "Country"][N > 60][["Country"]]
 data <- data[, Country := ifelse(Country %in% large_countries, Country, "Other")]
+rm(large_countries)
 ```
 
+This step is similar to the above - however, here countries with 60 or less observations are categorized as "Other".
+(Observation types that are very rare might not be much useful for prediction, hence grouping them can help)
+
 #### b) Using graphs, find at least two interesting features that can contribute to understanding developer salaries.
+
+```{r}
+str(data)
+
+data[, .N, by = CompanySize]
+
+dt_size_mapping <- data.table(unique(data$CompanySize))
+dt_size_mapping <- cbind(dt_size_mapping, 
+                         data.table(c("10,000<", "5,000<", "1000<", "500<", "10<", "100<", "20<", "10>", "Other", "Other", "Other" ))
+                         )
+setnames(dt_size_mapping, c("CompanySize", "CompSize"))
+data <- merge(data, dt_size_mapping, by = "CompanySize", all.x = TRUE)
+rm(dt_size_mapping)
+
+
+data[, CompSize := factor(CompanySize, levels = c(""))]
+data[, CompSize := factor(CompanySize, levels = c(""))]
+
+summary <- 
+
+ggplot(data = data, aes(x = CompanySize, y = Salary)) + 
+      geom_point() + geom_smooth(method = 'loess')
+      facet_grid(~Gender)
+```
 
 #### c) Create a training and a test set assigning 70% to the training set and 30% as the test set.
 
