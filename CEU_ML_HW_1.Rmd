@@ -68,28 +68,48 @@ This step is similar to the above - however, here countries with 60 or less obse
 #### b) Using graphs, find at least two interesting features that can contribute to understanding developer salaries.
 
 ```{r}
-str(data)
-
-data[, .N, by = CompanySize]
-
 dt_size_mapping <- data.table(unique(data$CompanySize))
 dt_size_mapping <- cbind(dt_size_mapping, 
-                         data.table(c("10,000<", "5,000<", "1000<", "500<", "10<", "100<", "20<", "10>", "Other", "Other", "Other" ))
-                         )
+                         data.table(c("10K<", "5K<", "1K<", 
+                                 "500<", "10<", "100<", 
+                                 "20<", "10>", 
+                                 "Other", "Other", "Other" )))
+                         
 setnames(dt_size_mapping, c("CompanySize", "CompSize"))
 data <- merge(data, dt_size_mapping, by = "CompanySize", all.x = TRUE)
 rm(dt_size_mapping)
 
-
-data[, CompSize := factor(CompanySize, levels = c(""))]
-data[, CompSize := factor(CompanySize, levels = c(""))]
-
-summary <- 
-
-ggplot(data = data, aes(x = CompanySize, y = Salary)) + 
-      geom_point() + geom_smooth(method = 'loess')
-      facet_grid(~Gender)
+data[, CompSize := factor(CompSize, levels = c("10K<", "5K<", "1K<", "500<", "100<", "20<", "10<", "10>", "Other"))]
 ```
+
+The above piece of code remaps the "CompanySize" variable to a more readable format for charts, as well as sets the right order level.
+
+```{r}
+#data[, .(count = .N, avg = mean(Salary)), by = .(CompanySize, CompSize)][order(CompSize)]
+
+summary <- data[, 
+                .(avg_salary = mean(Salary)), 
+                by = .(CompSize, Gender)][order(CompSize, Gender)]
+
+ggplot() + 
+      geom_point(data = data, aes(x = CompSize, y = Salary), color = "blue", alpha = 0.1) + 
+      geom_line(data = summary, aes(x = CompSize, y = avg_salary), color = "orange", size = 1.25, group = 1) +
+      geom_text(data = summary, aes(x = CompSize, y = avg_salary, label = round(avg_salary / 1000)), color = "orange", group = 1, hjust = 0, vjust = 0) +
+      facet_grid(~Gender)
+## TODO: better colors
+## TODO: labels, etc.
+```
+
+We can observe at least three important things on the above chart:
+
+      1. Generally, all genders are getting better paid the larger the firm size
+      2. Visually, the gender gap does not seem significant: all three genders are getting paid similar amount, with similar dynamics (see above point)
+      3. There are a lot more males among the observations than either females or "other"
+
+```{r}
+str(data)
+```
+
 
 #### c) Create a training and a test set assigning 70% to the training set and 30% as the test set.
 
