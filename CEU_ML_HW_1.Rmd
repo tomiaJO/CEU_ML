@@ -1,0 +1,75 @@
+---
+title: "ML HW1"
+subtitle: "subtitle"
+author: "Tamas Koncz"
+date: '2018-01-21'
+output:
+  html_document:
+    df_print: paged
+  html_notebook:
+    df_print: paged
+---
+
+```{r, message=FALSE}
+library(data.table)
+library(ggplot2)
+library(caret)
+library(rpart)
+
+theme_set(theme_bw())   # globally set ggplot theme
+
+set.seed(1234)
+```
+
+
+### 1. Model selection with a validation set (5 points)
+
+### 2. Predicting developer salaries (5 points)
+
+#### a) Describe what the data cleansing steps mean.
+
+Explanations below each code piece:
+```{r}
+data <- fread("../../data/stackoverflow2017/survey_results_public_selected.csv")
+```
+
+Reads in data for the .csv file.
+
+```{r}
+data <- data[!is.na(Salary) & Salary > 0]
+```
+
+Removes rows, where Salary information is missing (null), or it is below / equals to 0.
+Dataset goes from 51392 observations to 12885 - however, this is necessary, so that the model can be trained on meaningful salary information. 
+
+```{r}
+data <- data[complete.cases(data)]
+```
+
+Removes any rows with missing (null) information in any column.
+No impact on the dataset in this case. The step could be used to avoid cases where a model can't handle missing information gracefully.
+
+```{r}
+data <- data[, Gender := ifelse(Gender == "Male", "Male",
+                              ifelse(Gender == "Female", "Female", "Other"))]
+
+unique(data$Gender)
+```
+
+```{r}
+large_countries <- data[, .N, by = "Country"][N > 60][["Country"]]
+data <- data[, Country := ifelse(Country %in% large_countries, Country, "Other")]
+```
+
+#### b) Using graphs, find at least two interesting features that can contribute to understanding developer salaries.
+
+#### c) Create a training and a test set assigning 70% to the training set and 30% as the test set.
+
+#### d) Using caret train at least two predictive models to predict the logarithm of Salary (they can be of the same family but with different hyperparameters or they can be of different families like we used lm and rpart in the first exercise). Make sure NOT to include Salary as a predictor variable. Also, just before calling train, remember to use set.seed.
+
+
+
+
+### 3. Leave-one-out cross validation (3 points)
+
+
