@@ -19,6 +19,7 @@ library(rpart)
 theme_set(theme_bw())   # globally set ggplot theme
 
 set.seed(1234)
+RMSE <- function(x, true_x) sqrt(mean((x - true_x)^2))
 ```
 
 
@@ -28,9 +29,12 @@ set.seed(1234)
 
 #### a) Describe what the data cleansing steps mean.
 
+# CHANGE BACK PATH BEFORE SUBMITTING
+
 Explanations below each code piece:
 ```{r}
-data <- fread("../../data/stackoverflow2017/survey_results_public_selected.csv")
+#data <- fread("../../data/stackoverflow2017/survey_results_public_selected.csv")
+data <- fread("survey_results_public_selected.csv")
 ```
 
 Reads in data for the .csv file.
@@ -84,7 +88,7 @@ data[, CompSize := factor(CompSize, levels = c("10K<", "5K<", "1K<", "500<", "10
 
 The above piece of code remaps the "CompanySize" variable to a more readable format for charts, as well as sets the right order level.
 
-```{r}
+```{r, fig.width=15, fig.height=7}
 #data[, .(count = .N, avg = mean(Salary)), by = .(CompanySize, CompSize)][order(CompSize)]
 
 summary <- data[, 
@@ -92,12 +96,16 @@ summary <- data[,
                 by = .(CompSize, Gender)][order(CompSize, Gender)]
 
 ggplot() + 
-      geom_point(data = data, aes(x = CompSize, y = Salary), color = "blue", alpha = 0.1) + 
-      geom_line(data = summary, aes(x = CompSize, y = avg_salary), color = "orange", size = 1.25, group = 1) +
-      geom_text(data = summary, aes(x = CompSize, y = avg_salary, label = round(avg_salary / 1000)), color = "orange", group = 1, hjust = 0, vjust = 0) +
-      facet_grid(~Gender)
-## TODO: better colors
-## TODO: labels, etc.
+      geom_point(data = data, aes(x = CompSize, y = Salary / 1000), color = "blue", alpha = 0.1) + 
+      geom_line(data = summary, aes(x = CompSize, y = avg_salary / 1000), color = "orange", size = 1.25, group = 1) +
+      geom_text(data = summary, aes(x = CompSize, y = avg_salary / 1000, label = round(avg_salary / 1000)), color = "orange", group = 1, hjust = 0, vjust = 0) +
+      facet_grid(~Gender) +
+      labs(title = "Salary comparison across company sizes", 
+           subtitle = "Orange line: average salary. Blue dots are individuals",
+           x = "Company size",
+           y = "Salary",
+           caption = "Numbers are in $K")
+
 ```
 
 We can observe at least three important things on the above chart:
@@ -106,16 +114,104 @@ We can observe at least three important things on the above chart:
       2. Visually, the gender gap does not seem significant: all three genders are getting paid similar amount, with similar dynamics (see above point)
       3. There are a lot more males among the observations than either females or "other"
 
-```{r}
-str(data)
+```{r, fig.width=15, fig.height=7}
+temp <- data[, 
+                .(avg_salary = mean(Salary)), 
+                by = .(Country, Gender)]
+temp2 <- data[, 
+                .(avg_salary = mean(Salary)), 
+                by = .(Country)]
+
+summary2 <- temp[, Country := factor(Country, levels = temp2[order(avg_salary)][, Country])]
+
+ggplot(data = summary2, aes(x = Country, y = avg_salary / 1000)) + 
+      geom_bar(stat = "identity", fill = "blue") + coord_flip() +
+      geom_text(aes(x = Country, y = avg_salary / 1000, label = round(avg_salary / 1000)), color = "black", group = 1, hjust = 0) +
+      facet_grid(~Gender) +
+      labs(title = "Salary comparison across countries",
+           x = "Country",
+           y = "Salary",
+           caption = "Numbers are in $K")
+
+## I had to leave out the TabsSpaces column, as I really didn't like the result :( # https://www.youtube.com/watch?v=SsoOG6ZeyUI
 ```
 
+Let's highlight two important (although not suprising) observations:
+
+      1. Country is a key factor in determining the salary level
+      2. Most countries actually show a gender gap in mean pay - we did not see such a thing in the breakdown by company size (think number of people working at the different types of companies!)
 
 #### c) Create a training and a test set assigning 70% to the training set and 30% as the test set.
 
+```{r}
+data[, log_salary := log(Salary)]
+
+training_ratio <- 0.7
+set.seed(1234)
+train_indices <- createDataPartition(y = data[["log_salary"]],
+                                     times = 1,
+                                     p = training_ratio,
+                                     list = FALSE)
+data_train <- data[train_indices, ]
+data_test <- data[-train_indices, ]
+```
+
+
 #### d) Using caret train at least two predictive models to predict the logarithm of Salary (they can be of the same family but with different hyperparameters or they can be of different families like we used lm and rpart in the first exercise). Make sure NOT to include Salary as a predictor variable. Also, just before calling train, remember to use set.seed.
 
+Training two models, without setting any additional control parameters: 
 
+```{r}
+
+fit_control <- trainControl(method = "cv", number = 10)
+
+set.seed(1234)
+rpart_fit <- train(log_salary ~ . -Salary, 
+                   data = data_train, 
+                   method = "rpart", 
+                   trControl = fit_control)
+set.seed(1234)
+glm_fit <- train(log_salary ~ . -Salary, 
+                   data = data_train, 
+                   method = "glm", 
+                   trControl = fit_control)
+```
+
+
+
+#### Then:
+####    1. choose the best model based on cross-validation estimation on the training set
+
+```{r}
+rpart_fit
+```
+
+```{r}
+glm_fit
+```
+
+
+Based on the RMSE values, even the best tree performed worse than the linear model, so we'll continue with that one.
+
+####    2. evaluate its performance on the test set
+
+```{r}
+avg_salary <- mean(data_train$Salary)
+RMSE(log(avg_salary), data_test[["log_salary"]])
+
+test_prediction <- predict.train(glm_fit, newdata = data_test)
+RMSE(test_prediction, data_test[["log_salary"]])
+```
+
+To have some basis for comparison, I've calculated RMSE with using the log(Avg. Salary) as well. As it shows, there is significant improvement compared to this "basic model".
+Also, even though the performance is worse on the test set (naturally), it is not a terrible difference compared to the error on the training set.
+
+#### e. Compare the true and predicted values of the test set on a graph. How do you evaluate the model fit based on this graph?
+
+```{r}
+eval <- cbind(actual = data_test$log_salary, predicted = test_prediction)
+head(eval)
+```
 
 
 ### 3. Leave-one-out cross validation (3 points)
