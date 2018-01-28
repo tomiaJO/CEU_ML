@@ -15,6 +15,7 @@ library(data.table)
 library(ggplot2)
 library(caret)
 library(rpart)
+library(titanic)
 
 theme_set(theme_bw())   # globally set ggplot theme
 
@@ -209,11 +210,43 @@ Also, even though the performance is worse on the test set (naturally), it is no
 #### e. Compare the true and predicted values of the test set on a graph. How do you evaluate the model fit based on this graph?
 
 ```{r}
-eval <- cbind(actual = data_test$log_salary, predicted = test_prediction)
-head(eval)
+eval <- data.table(cbind(actual = data_test$log_salary, predicted = test_prediction))
+
+ggplot(data = eval, aes(x = actual, y = predicted)) + 
+  geom_point(alpha = .1) + 
+  geom_abline(intercept = log(avg_salary), slope = 0, color = "blue") +
+  geom_abline(slope = 1, color = "red") +
+  scale_y_continuous(limits = c(-5, 15)) +
+  scale_x_continuous(limits = c(-5, 15))  +
+      labs(title = "Model performance - Actual vs Predicted values for log(Salary)",
+           subtitle = "blue - avg. salary, red - x=y line",
+           x = "Actual",
+           y = "Predicted")
 ```
+Based on the above, the model does a relatively good job around the most frequent salary range (~intercept of the two lines, the mean salary).
+However, its performance is the worse the further we go from this range - this is likely due to the limitation of the linear model.
 
 
 ### 3. Leave-one-out cross validation (3 points)
 
+
+#### a. Name a disadvantage of this method compared to using a moderate value (say, 10) for k?
+
+
+#### b. Why do you think it can still make sense to compute this measure? In what way can this measure be closer to the “real” performance of the model?
+
+
+```{r}
+data_train <- data.table(titanic_train)
+# recode Survived to factor - needed for binary prediction
+data_train[, Survived := factor(ifelse(Survived == 1, "survived", "died"))]
+```
+
+#### c. You can implement LOOCV with caret by setting an option in trainControl: method = "loocv". and use a simple logit model glm for prediction.
+####    1. In caret, you can use it via method = "glm"
+####    2. include classProbs = TRUE in trainControl to let train know that you are predicting a binary outcome
+
+#### d. Compare the accuracy of the model estimated by the two resampling methods via summary(fitted_model$resample). Accuracy is the share of cases predicted correctly.
+####    1. How large are the means?
+####    2. How do other quantiles look like? Why are quantiles of the accuracy measures of LOOCV so extreme (either 0 or 1)?
 
