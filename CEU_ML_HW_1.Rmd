@@ -1,8 +1,7 @@
 ---
-title: "ML HW1"
-subtitle: "subtitle"
+title: "Machine Learning -  Homework 1"
 author: "Tamas Koncz"
-date: '2018-01-21'
+date: '2018-01-28'
 output:
   html_document:
     df_print: paged
@@ -70,7 +69,7 @@ train_control <- trainControl(method = "none")
 
 ```{r}
 set.seed(1234)
-model_benchmark <- train(log_price ~ sqft_living, 
+model_simple_linear <- train(log_price ~ sqft_living, 
                      data = data_train, 
                      method = "lm", 
                      trControl = train_control)
@@ -93,16 +92,41 @@ tune_grid <- data.frame("cp" = 0.0001)
 set.seed(1234)
 model_rpart <- train(log_price ~ ., 
                    data = data_train, 
-                   method = "lm", 
+                   method = "rpart", 
                    trControl = train_control,
                    tuneGrid = tune_grid)
 ```
 
+#### c. Compare your models on the validation set and choose the one with the best performance (using RMSE). Use predict.train for prediction just like we used predict in class.
+
+```{r}
+simple_linear_rmse <- RMSE(predict.train(model_simple_linear, newdata = data_validation), data_validation[["log_price"]])
+linear_rmse <- RMSE(predict.train(model_linear, newdata = data_validation), data_validation[["log_price"]])
+rpart_rmse <- RMSE(predict.train(model_rpart, newdata = data_validation), data_validation[["log_price"]])
+
+simple_linear_rmse
+linear_rmse
+rpart_rmse
+```
+Based on RMSE on the validation set, the second model, the linear regression containing all variables performed the best.
+
+##### d. Evaluate the final model on the test set. Why is it important to have this final set of observations set aside for evaluation? (Hint: think about what we used the validation set for.)
+
+```{r}
+final_performance_measure <- RMSE(predict.train(model_linear, newdata = data_test), data_test[["log_price"]])
+final_performance_measure
+```
+The final model has an error rate of 0.19 on the test set - slightly better than what we measured on the validation set, hence the results can be deemed stable.
+The reason to use this third set for testing performance is to avoid any cross-dependence between the data used for evaluation of final performance and model tuning/selection. The training set was used for training the models, hence obviosuly not a good dataset to measure performance. We set aside a validation set, however this can be also misleading - this was used for selecting the best model from the three models trained, hence the results could be "biased" towards the selected one. A third, independent dataset for testing can solve this problem for us.
+
+#### e. Do you think it makes more sense to use this method rather than the one used in class? What can be advantages or disadvantages of one or the other?
+
+The difference is that in class we used a k-fold (k=10, repeated 5 times) CV method, while here we used a simple validation set approach.
+The approach used here is clearly more computational-friendly, however it comes at a price: the actual models and estimates may depend on the data-split, and can vary significantly (this problem is less apparent with larger sample sizes).
+
 ### 2. Predicting developer salaries (5 points)
 
 #### a) Describe what the data cleansing steps mean.
-
-# CHANGE BACK PATH BEFORE SUBMITTING
 
 Explanations below each code piece:
 ```{r}
