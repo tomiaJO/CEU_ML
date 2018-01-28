@@ -141,6 +141,30 @@ set.seed(1234)
 RMSE &lt;- function(x, true_x) sqrt(mean((x - true_x)^2))</code></pre>
 <div id="model-selection-with-a-validation-set-5-points" class="section level3">
 <h3>1. Model selection with a validation set (5 points)</h3>
+<pre class="r"><code># data &lt;- fread(&quot;../../data/king_county_house_prices/kc_house_data.csv&quot;)
+data &lt;- fread(&quot;kc_house_data.csv&quot;)
+
+data[, `:=`(floors = as.numeric(floors), zipcode = factor(zipcode))]
+data[, log_price := log(price)]
+
+data[, c(&quot;id&quot;, &quot;date&quot;, &quot;sqft_living15&quot;, &quot;sqft_lot15&quot;, &quot;price&quot;) := NULL]
+
+set.seed(1234)</code></pre>
+<div id="a.-using-createdatapartition-cut-your-data-into-three-parts-50-should-be-your-training-data-25-each-your-validation-and-test-sets-hint-cut-data-into-two-parts-then-further-cut-one-part-into-two." class="section level4">
+<h4>a. Using createDataPartition, cut your data into three parts: 50% should be your training data, 25% each your validation and test sets (hint: cut data into two parts, then further cut one part into two).</h4>
+</div>
+<div id="b.-train-three-models-on-the-training-data-via-caret-without-cross-validation-method-none" class="section level4">
+<h4>b. Train three models on the training data via caret, without cross validation (method = “none”):</h4>
+</div>
+<div id="a-linear-model-lm-with-only-using-sqft_living-as-a-predictor-a-simple-benchmark" class="section level4">
+<h4>a linear model lm with only using sqft_living as a predictor (a simple benchmark)</h4>
+</div>
+<div id="a-linear-model-lm-using-all-available-features" class="section level4">
+<h4>a linear model lm using all available features</h4>
+</div>
+<div id="a-regression-tree-rpart-with-cp-0.0001-the-tune-grid-should-be-a-dataframe-with-one-column-cp-and-one-row-with-value-0.0001" class="section level4">
+<h4>a regression tree (rpart) with cp = 0.0001 (the tune grid should be a dataframe with one column cp and one row with value 0.0001)</h4>
+</div>
 </div>
 <div id="predicting-developer-salaries-5-points" class="section level3">
 <h3>2. Predicting developer salaries (5 points)</h3>
@@ -353,12 +377,20 @@ ggplot(data = eval, aes(x = actual, y = predicted)) +
 <h3>3. Leave-one-out cross validation (3 points)</h3>
 <div id="a.-name-a-disadvantage-of-this-method-compared-to-using-a-moderate-value-say-10-for-k" class="section level4">
 <h4>a. Name a disadvantage of this method compared to using a moderate value (say, 10) for k?</h4>
+<p>Two major ones: 1. Given the model needs to be fit n times, for a large dataset it can be computationally very expensive (also depending on the model) 2. LOOCV tends to have higher variance - this is due to the fact that the n models are trained on almost identical data, hence the fitted models demonstrate more significant correlation</p>
 </div>
 <div id="b.-why-do-you-think-it-can-still-make-sense-to-compute-this-measure-in-what-way-can-this-measure-be-closer-to-the-real-performance-of-the-model" class="section level4">
 <h4>b. Why do you think it can still make sense to compute this measure? In what way can this measure be closer to the “real” performance of the model?</h4>
+<p>Going back to point 2. in the above - the flip side of the LOOCV is that it’s better at bias reduction (compared to k-fold CV). K-fold CV might also have more variability in results depending on the actual split - however, this might not be significant in real scenarios.</p>
 <pre class="r"><code>data_train &lt;- data.table(titanic_train)
 # recode Survived to factor - needed for binary prediction
-data_train[, Survived := factor(ifelse(Survived == 1, &quot;survived&quot;, &quot;died&quot;))]</code></pre>
+data_train[, Survived := factor(ifelse(Survived == 1, &quot;survived&quot;, &quot;died&quot;))]
+data_train[, .N, by = Survived]</code></pre>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":["Survived"],"name":[1],"type":["fctr"],"align":["left"]},{"label":["N"],"name":[2],"type":["int"],"align":["right"]}],"data":[{"1":"died","2":"549"},{"1":"survived","2":"342"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
 </div>
 <div id="c.-you-can-implement-loocv-with-caret-by-setting-an-option-in-traincontrol-method-loocv.-and-use-a-simple-logit-model-glm-for-prediction." class="section level4">
 <h4>c. You can implement LOOCV with caret by setting an option in trainControl: method = “loocv”. and use a simple logit model glm for prediction.</h4>
@@ -368,15 +400,51 @@ data_train[, Survived := factor(ifelse(Survived == 1, &quot;survived&quot;, &quo
 </div>
 <div id="include-classprobs-true-in-traincontrol-to-let-train-know-that-you-are-predicting-a-binary-outcome" class="section level4">
 <h4>2. include classProbs = TRUE in trainControl to let train know that you are predicting a binary outcome</h4>
+<pre class="r"><code>fit_control &lt;- trainControl(method = &quot;loocv&quot;, classProbs = TRUE)
+
+set.seed(1234)
+glm_fit_loocv &lt;- train(Survived ~ Fare + Sex, 
+                   data = data_train, 
+                   method = &quot;glm&quot;, 
+                   trControl = fit_control)</code></pre>
+<pre><code>## Warning in nominalTrainWorkflow(x = x, y = y, wts = weights, info =
+## trainInfo, : There were missing values in resampled performance measures.</code></pre>
+<pre class="r"><code>fit_control &lt;- trainControl(method = &quot;cv&quot;, number = 10, classProbs = TRUE)
+
+set.seed(1234)
+glm_fit_kfoldcv &lt;- train(Survived ~ Fare + Sex, 
+                   data = data_train, 
+                   method = &quot;glm&quot;, 
+                   trControl = fit_control)</code></pre>
 </div>
 <div id="d.-compare-the-accuracy-of-the-model-estimated-by-the-two-resampling-methods-via-summaryfitted_modelresample.-accuracy-is-the-share-of-cases-predicted-correctly." class="section level4">
 <h4>d. Compare the accuracy of the model estimated by the two resampling methods via summary(fitted_model$resample). Accuracy is the share of cases predicted correctly.</h4>
 </div>
 <div id="how-large-are-the-means" class="section level4">
 <h4>1. How large are the means?</h4>
+<pre class="r"><code>summary(glm_fit_loocv$resample)</code></pre>
+<pre><code>##     Accuracy          Kappa       Resample        
+##  Min.   :0.0000   Min.   :0     Length:891        
+##  1st Qu.:1.0000   1st Qu.:0     Class :character  
+##  Median :1.0000   Median :0     Mode  :character  
+##  Mean   :0.7823   Mean   :0                       
+##  3rd Qu.:1.0000   3rd Qu.:0                       
+##  Max.   :1.0000   Max.   :0                       
+##                   NA's   :697</code></pre>
+<pre class="r"><code>summary(glm_fit_kfoldcv$resample)</code></pre>
+<pre><code>##     Accuracy          Kappa          Resample        
+##  Min.   :0.7191   Min.   :0.4017   Length:10         
+##  1st Qu.:0.7640   1st Qu.:0.5000   Class :character  
+##  Median :0.7809   Median :0.5224   Mode  :character  
+##  Mean   :0.7834   Mean   :0.5375                     
+##  3rd Qu.:0.7949   3rd Qu.:0.5551                     
+##  Max.   :0.8652   Max.   :0.7045</code></pre>
+<p>Means are almost virtually identical, both models have predicted ~78% of the cases correctly.</p>
 </div>
 <div id="how-do-other-quantiles-look-like-why-are-quantiles-of-the-accuracy-measures-of-loocv-so-extreme-either-0-or-1" class="section level4">
 <h4>2. How do other quantiles look like? Why are quantiles of the accuracy measures of LOOCV so extreme (either 0 or 1)?</h4>
+<p>For the k=10-fold CV, results are nicely distributed in the 72% - 87% range (this is still signficant variability, however looking at the 1st - 3rd quartiles the gap is very close, just 3% difference in hit rate).</p>
+<p>For the LOOCV, the extreme results are due to the method itself - for every run, the error rate is measure only on one observation, which is by definition either correctly or not correctly predicted for binary targets.</p>
 </div>
 </div>
 </div>

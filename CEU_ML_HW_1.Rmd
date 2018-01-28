@@ -26,6 +26,39 @@ RMSE <- function(x, true_x) sqrt(mean((x - true_x)^2))
 
 ### 1. Model selection with a validation set (5 points)
 
+```{r}
+
+# data <- fread("../../data/king_county_house_prices/kc_house_data.csv")
+data <- fread("kc_house_data.csv")
+
+data[, `:=`(floors = as.numeric(floors), zipcode = factor(zipcode))]
+data[, log_price := log(price)]
+
+data[, c("id", "date", "sqft_living15", "sqft_lot15", "price") := NULL]
+
+set.seed(1234)
+```
+
+#### a. Using createDataPartition, cut your data into three parts: 50% should be your training data, 25% each your validation and test sets (hint: cut data into two parts, then further cut one part into two).
+
+```{r}
+training_ratio <- 0.7
+set.seed(1234)
+train_indices <- createDataPartition(y = data[["log_salary"]],
+                                     times = 1,
+                                     p = training_ratio,
+                                     list = FALSE)
+data_train <- data[train_indices, ]
+data_test <- data[-train_indices, ]
+```
+
+
+#### b. Train three models on the training data via caret, without cross validation (method = "none"):
+
+####    1. a linear model lm with only using sqft_living as a predictor (a simple benchmark)
+####    2. a linear model lm using all available features
+####    3. a regression tree (rpart) with cp = 0.0001 (the tune grid should be a dataframe with one column cp and one row with value 0.0001)
+
 ### 2. Predicting developer salaries (5 points)
 
 #### a) Describe what the data cleansing steps mean.
@@ -232,21 +265,58 @@ However, its performance is the worse the further we go from this range - this i
 
 #### a. Name a disadvantage of this method compared to using a moderate value (say, 10) for k?
 
+Two major ones:
+    1. Given the model needs to be fit n times, for a large dataset it can be computationally very expensive (also depending on the model)
+    2. LOOCV tends to have higher variance - this is due to the fact that the n models are trained on almost identical data, hence the fitted models demonstrate more significant correlation
 
 #### b. Why do you think it can still make sense to compute this measure? In what way can this measure be closer to the “real” performance of the model?
 
+Going back to point 2. in the above - the flip side of the LOOCV is that it's better at bias reduction (compared to k-fold CV).
+K-fold CV might also have more variability in results depending on the actual split - however, this might not be significant in real scenarios.
 
 ```{r}
 data_train <- data.table(titanic_train)
 # recode Survived to factor - needed for binary prediction
 data_train[, Survived := factor(ifelse(Survived == 1, "survived", "died"))]
+data_train[, .N, by = Survived]
 ```
 
 #### c. You can implement LOOCV with caret by setting an option in trainControl: method = "loocv". and use a simple logit model glm for prediction.
 ####    1. In caret, you can use it via method = "glm"
 ####    2. include classProbs = TRUE in trainControl to let train know that you are predicting a binary outcome
 
+```{r}
+
+fit_control <- trainControl(method = "loocv", classProbs = TRUE)
+
+set.seed(1234)
+glm_fit_loocv <- train(Survived ~ Fare + Sex, 
+                   data = data_train, 
+                   method = "glm", 
+                   trControl = fit_control)
+
+fit_control <- trainControl(method = "cv", number = 10, classProbs = TRUE)
+
+set.seed(1234)
+glm_fit_kfoldcv <- train(Survived ~ Fare + Sex, 
+                   data = data_train, 
+                   method = "glm", 
+                   trControl = fit_control)
+```
+
 #### d. Compare the accuracy of the model estimated by the two resampling methods via summary(fitted_model$resample). Accuracy is the share of cases predicted correctly.
 ####    1. How large are the means?
+```{r}
+summary(glm_fit_loocv$resample)
+```
+```{r}
+summary(glm_fit_kfoldcv$resample)
+```
+
+Means are almost virtually identical, both models have predicted ~78% of the cases correctly.
+
 ####    2. How do other quantiles look like? Why are quantiles of the accuracy measures of LOOCV so extreme (either 0 or 1)?
 
+For the k=10-fold CV, results are nicely distributed in the 72% - 87% range (this is still signficant variability, however looking at the 1st - 3rd quartiles the gap is very close, just 3% difference in hit rate).
+
+For the LOOCV, the extreme results are due to the method itself - for every run, the error rate is measure only on one observation, which is by definition either correctly or not correctly predicted for binary targets.
