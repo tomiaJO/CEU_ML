@@ -42,22 +42,61 @@ set.seed(1234)
 #### a. Using createDataPartition, cut your data into three parts: 50% should be your training data, 25% each your validation and test sets (hint: cut data into two parts, then further cut one part into two).
 
 ```{r}
-training_ratio <- 0.7
+training_ratio <- 0.5
 set.seed(1234)
-train_indices <- createDataPartition(y = data[["log_salary"]],
+train_indices <- createDataPartition(y = data[["log_price"]],
                                      times = 1,
                                      p = training_ratio,
                                      list = FALSE)
 data_train <- data[train_indices, ]
-data_test <- data[-train_indices, ]
+data_temp <- data[-train_indices, ]
+set.seed(1234)
+validation_indices <- createDataPartition(y = data_temp[["log_price"]],
+                                     times = 1,
+                                     p = training_ratio,
+                                     list = FALSE)
+data_validation <- data_temp[validation_indices, ]
+data_test <- data_temp[-validation_indices, ]
+rm(data_temp)
 ```
 
 
 #### b. Train three models on the training data via caret, without cross validation (method = "none"):
+```{r}
+train_control <- trainControl(method = "none")
+```
 
 ####    1. a linear model lm with only using sqft_living as a predictor (a simple benchmark)
+
+```{r}
+set.seed(1234)
+model_benchmark <- train(log_price ~ sqft_living, 
+                     data = data_train, 
+                     method = "lm", 
+                     trControl = train_control)
+```
+
 ####    2. a linear model lm using all available features
+
+```{r}
+set.seed(1234)
+model_linear <- train(log_price ~ ., 
+                   data = data_train, 
+                   method = "lm", 
+                   trControl = train_control)
+```
+
 ####    3. a regression tree (rpart) with cp = 0.0001 (the tune grid should be a dataframe with one column cp and one row with value 0.0001)
+
+```{r}
+tune_grid <- data.frame("cp" = 0.0001)
+set.seed(1234)
+model_rpart <- train(log_price ~ ., 
+                   data = data_train, 
+                   method = "lm", 
+                   trControl = train_control,
+                   tuneGrid = tune_grid)
+```
 
 ### 2. Predicting developer salaries (5 points)
 
