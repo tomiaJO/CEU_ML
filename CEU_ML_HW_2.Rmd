@@ -15,6 +15,9 @@ library(ggplot2)
 library(caret)
 library(rpart)
 library(skimr)
+library(zoo)
+
+options(scipen = 999)
 
 theme_set(theme_bw())   # globally set ggplot theme
 
@@ -37,11 +40,17 @@ data[ , treatment := factor(treatment, levels = c("Yes", "No"))]
 
 ```{r}
 data[, is_treated := ifelse(treatment == "Yes", 1, 0)]
+```
 
+
+```{r}
 # gender
 dt <- data[ ,.(avg = sum(is_treated) / .N), keyby = gender]
 ggplot(data = dt) + geom_bar(aes(x = gender, y = avg), stat = "identity")
+```
 
+
+```{r}
 # country
 data[, country_cnt := .N, by = country]
 
@@ -50,13 +59,47 @@ data[, country := ifelse(country_cnt >= 20, country, "Other")]
 dt2 <- data[ ,.(avg = sum(is_treated) / .N), keyby = country]
 dt2 <- dt2[, country := factor(country, levels = dt2[order(-avg)][["country"]])]
 ggplot(data = dt2) + geom_bar(aes(x = country, y = avg), stat = "identity")
+```
 
+
+```{r}
 # age
-data[, age := as.numeric(age)]
-dt3 <- data[ ,.(avg = sum(is_treated) / .N), keyby = age]
-ggplot() + 
-  geom_point(data = data, aes(x = factor(age), y = is_treated), stat = "identity")
+data[, age := round(age)]
+data <- data[age >= 18]
+data <- data[age <= 65]
 
+dt3 <- data[ ,.(avg = sum(is_treated) / .N), keyby = age]
+dt3 <- dt3[order(age)][, rollavg := rollmean(avg, 5, fill = NA)]
+ggplot() + 
+  geom_point(data = data, aes(x = age, y = is_treated), stat = "identity", alpha = .1)  +
+  geom_line(data = dt3, aes(x = age, y = rollavg))
+
+```
+
+```{r}
+# family_history
+dt4 <- data[ ,.(avg = sum(is_treated) / .N), keyby = family_history]
+ggplot(data = dt4) + geom_bar(aes(x = family_history, y = avg), stat = "identity")
+```
+
+```{r}
+# self_employed -- > not much differentiating & lot of missing values (those could be likely extrapolated)
+
+dt5 <- data[ ,.(avg = sum(is_treated) / .N), keyby = remote_work]
+ggplot(data = dt5) + geom_bar(aes(x = remote_work, y = avg), stat = "identity")
+```
+
+```{r}
+data[, no_employees := factor(no_employees, levels = c("1-5", "6-25", "26-100", "100-500", "500-1000", "More than 1000"))]
+dt6 <- data[ ,.(avg = sum(is_treated) / .N), keyby = no_employees]
+ggplot(data = dt6) + geom_bar(aes(x = no_employees, y = avg), stat = "identity")
+```
+
+
+```{r}
+data <- data[, c("treatment", "no_employees", "self_employed", 
+                  "remote_work", "family_history", "age", "country", 
+                  "gender")]
 ```
 
 
