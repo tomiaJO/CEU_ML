@@ -380,4 +380,52 @@ ggplot(roc_df) +
 #### Draw a calibration plot for all three scores separately:
 ####      1. group people into bins based on predicted scores
 ####      2. display on a scatterplot the mean of the predicted scores versus the actual share of people surviving
+
+```{r}
+test_truth <- data_test[["no_show"]]
+truth_numeric <- ifelse(test_truth == "Yes", 1, 0)
+```
+
+```{r}
+score_simple <- prediction$Yes
+
+actual_vs_predicted <- data.table(actual = truth_numeric,
+                                  predicted = score_simple)
+
+actual_vs_predicted[, score_category := cut(predicted,
+                                    seq(0, 0.6, 0.05),
+                                    include.lowest = TRUE)]
+calibration <- actual_vs_predicted[, .(mean_actual = mean(actual),
+                                       mean_predicted = mean(predicted),
+                                       num_obs = .N),
+                                   keyby = .(score_category)]
+ggplot(calibration,
+       aes(x = mean_actual, y = mean_predicted, size = num_obs)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  ylim(0, 1) + xlim(0, 1)
+```
+
+
+```{r}
+score_sqrt <- prediction_sqrt$Yes
+
+actual_vs_predicted <- data.table(actual = truth_numeric,
+                                  predicted = score_sqrt)
+
+actual_vs_predicted[, score_category := cut(predicted,
+                                    seq(0, 0.6, 0.05),
+                                    include.lowest = TRUE)]
+calibration <- actual_vs_predicted[, .(mean_actual = mean(actual),
+                                       mean_predicted = mean(predicted),
+                                       num_obs = .N),
+                                   keyby = .(score_category)]
+ggplot(calibration,
+       aes(x = mean_actual, y = mean_predicted, size = num_obs)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  ylim(0, 1) + xlim(0, 1)
+```
+
+
 #### How do they compare? Which score(s) can be regarded as well-calibrated probabilites?
