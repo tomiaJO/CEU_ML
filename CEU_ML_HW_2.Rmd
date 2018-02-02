@@ -3,18 +3,20 @@ title: "Machine Learning -  Homework 2"
 author: "Tamas Koncz"
 date: '2018-02-04'
 output:
-  html_notebook:
-    df_print: paged
   html_document:
+    df_print: paged
+  html_notebook:
     df_print: paged
 ---
 
 ```{r, message=FALSE}
 library(data.table)
 library(ggplot2)
+library(gridExtra)
 library(caret)
 library(rpart)
 library(skimr)
+library(ROCR)
 library(zoo)
 
 options(scipen = 999)
@@ -29,6 +31,7 @@ RMSE <- function(x, true_x) sqrt(mean((x - true_x)^2))
 
 ```{r} 
 data <- fread("survey_cleaned.csv")
+
 # data <- fread("../../data/mental-health-in-tech/survey_cleaned.csv")
 
 data <- data[ ,c("comments", "state","work_interfere") := NULL]
@@ -36,7 +39,7 @@ data[, age := as.numeric(age)]
 data[ , treatment := factor(treatment, levels = c("Yes", "No"))]
 ```
 
-##### Explore some predictors that can be used to predict treatment.
+##### a. Explore some predictors that can be used to predict treatment.
 
 ```{r}
 data[, is_treated := ifelse(treatment == "Yes", 1, 0)]
@@ -46,7 +49,10 @@ data[, is_treated := ifelse(treatment == "Yes", 1, 0)]
 ```{r}
 # gender
 dt <- data[ ,.(avg = sum(is_treated) / .N), keyby = gender]
-ggplot(data = dt) + geom_bar(aes(x = gender, y = avg), stat = "identity")
+p1 <- ggplot(data = dt) + 
+  geom_bar(aes(x = gender, y = avg), stat = "identity") + 
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
+  coord_flip()
 ```
 
 
@@ -58,7 +64,15 @@ data[, country := ifelse(country_cnt >= 20, country, "Other")]
 
 dt2 <- data[ ,.(avg = sum(is_treated) / .N), keyby = country]
 dt2 <- dt2[, country := factor(country, levels = dt2[order(-avg)][["country"]])]
-ggplot(data = dt2) + geom_bar(aes(x = country, y = avg), stat = "identity")
+p2 <- ggplot(data = dt2) + 
+  geom_bar(aes(x = country, y = avg), stat = "identity") + 
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
+  coord_flip()
+```
+
+
+```{r, fig.width=15}
+grid.arrange(p1, p2, ncol = 2)
 ```
 
 
@@ -71,28 +85,44 @@ data <- data[age <= 65]
 dt3 <- data[ ,.(avg = sum(is_treated) / .N), keyby = age]
 dt3 <- dt3[order(age)][, rollavg := rollmean(avg, 5, fill = NA)]
 ggplot() + 
-  geom_point(data = data, aes(x = age, y = is_treated), stat = "identity", alpha = .1)  +
-  geom_line(data = dt3, aes(x = age, y = rollavg))
+  geom_point(data = data, aes(x = age, y = is_treated), stat = "identity", alpha = .1, color = "blue")  +
+  geom_line(data = dt3, aes(x = age, y = rollavg), color = "orange", size = 1.5) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
+  scale_x_continuous(limits = c(20, 65), breaks = seq(20, 65, 5))
 
 ```
 
 ```{r}
 # family_history
 dt4 <- data[ ,.(avg = sum(is_treated) / .N), keyby = family_history]
-ggplot(data = dt4) + geom_bar(aes(x = family_history, y = avg), stat = "identity")
+p4 <- ggplot(data = dt4) + 
+  geom_bar(aes(x = family_history, y = avg), stat = "identity") +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
+  coord_flip()
 ```
 
 ```{r}
 # self_employed -- > not much differentiating & lot of missing values (those could be likely extrapolated)
 
 dt5 <- data[ ,.(avg = sum(is_treated) / .N), keyby = remote_work]
-ggplot(data = dt5) + geom_bar(aes(x = remote_work, y = avg), stat = "identity")
+p5 <- ggplot(data = dt5) + 
+  geom_bar(aes(x = remote_work, y = avg), stat = "identity") +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
+  coord_flip()
 ```
 
 ```{r}
 data[, no_employees := factor(no_employees, levels = c("1-5", "6-25", "26-100", "100-500", "500-1000", "More than 1000"))]
 dt6 <- data[ ,.(avg = sum(is_treated) / .N), keyby = no_employees]
-ggplot(data = dt6) + geom_bar(aes(x = no_employees, y = avg), stat = "identity")
+p6 <- ggplot(data = dt6) + 
+  geom_bar(aes(x = no_employees, y = avg), stat = "identity") +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
+  coord_flip()
+```
+
+
+```{r, fig.width=15}
+grid.arrange(p4, p5, p6, ncol = 3)
 ```
 
 
@@ -103,7 +133,7 @@ data <- data[, c("treatment", "no_employees", "self_employed",
 ```
 
 
-##### Partition your data to 70% training and 30% test samples.
+##### b. Partition your data to 70% training and 30% test samples.
 
 ```{r}
 training_ratio <- 0.7
@@ -117,7 +147,7 @@ data_test <- data[-train_indices, ]
 ```
 
 
-##### Build models with glmnet and rpart that predict the binary outcome of treatment (you don’t have to use all variables if you don’t want to - experiment! Just use the same variables for both model families). Use cross-validation on the training set and use AUC as a selection measure (use metric = "ROC" in train and also don’t forget to use classProbs = TRUE, summaryFunction = twoClassSummary in  trainControl). Make sure to set the same seed before each call to train.
+##### c. Build models with glmnet and rpart that predict the binary outcome of treatment (you don’t have to use all variables if you don’t want to - experiment! Just use the same variables for both model families). Use cross-validation on the training set and use AUC as a selection measure (use metric = "ROC" in train and also don’t forget to use classProbs = TRUE, summaryFunction = twoClassSummary in  trainControl). Make sure to set the same seed before each call to train.
 
 ```{r}
 fit_control <- trainControl(method = "cv", number = 10, classProbs = TRUE, summaryFunction = twoClassSummary)
@@ -140,7 +170,7 @@ glmnet_fit <- train(treatment ~ .,
 ```
 
 
-##### Compare models based on their predictive performance based on the cross-validation information (you can just use the mean AUC to select the best model).
+##### d. Compare models based on their predictive performance based on the cross-validation information (you can just use the mean AUC to select the best model).
 
 ```{r}
 rpart_fit
@@ -150,7 +180,41 @@ rpart_fit
 glmnet_fit
 ```
 
-##### Evaluate the best model on the test set: draw an ROC curve and calculate and interpret the AUC.
+The two models have very similar performances when evaluated by AUC on the training set - however, the best glmnet model somewhat outdoes the best tree model (.69 vs .675 AUC), hence I'll continue with glmnet for evaluation on the test set.
+
+##### e. Evaluate the best model on the test set: draw an ROC curve and calculate and interpret the AUC.
+
+```{r}
+# glmnet
+test_prediction_glmnet <- predict.train(glmnet_fit, 
+                                        newdata = data_test, 
+                                        type = "prob")
+
+glmnet_prediction <- prediction(test_prediction_glmnet$Yes,
+                                data_test[["treatment"]])
+glmnet_perf <- performance(glmnet_prediction, measure = "tpr", x.measure = "fpr")
+
+glmnet_roc_df <- data.table(
+  model = "glmnet",
+  FPR = glmnet_perf@x.values[[1]],
+  TPR = glmnet_perf@y.values[[1]],
+  cutoff = glmnet_perf@alpha.values[[1]]
+)
+
+ggplot(glmnet_roc_df) +
+  geom_line(aes(FPR, TPR, color = model), size = 2) +
+  geom_abline(intercept = 0, slope = 1,  linetype = "dotted", col = "black") +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
+  xlab("False Positive Rate") + ylab("True Positive Rate") 
+```
+
+```{r}
+# calculate AUC
+glmnet_AUC <- performance(glmnet_prediction, measure = "auc")@y.values[[1]]
+glmnet_AUC
+```
+
 
 ##### If you have to choose a probability threshold to predict the outcome, what would you choose? At this threshold, how large are the true positive rate and the false positive rate? How many false positives and false negatives there are in the test sample?
 
@@ -161,13 +225,70 @@ glmnet_fit
 #### 2. Transformed scores (5 points)
 
 ```{r}
-data <- fread("../../data/medical-appointments-no-show/no-show-data.csv")
+data <- fread("no-show-data.csv")
+# data <- fread("../../data/medical-appointments-no-show/no-show-data.csv")
+```
 
+```{r}
 # [... apply the cleaning steps we did in class ...]
+
+data[, c("PatientId", "AppointmentID", "Neighbourhood") := NULL]
+setnames(data, 
+         c("No-show", 
+           "Age", 
+           "Gender",
+           "ScheduledDay", 
+           "AppointmentDay",
+           "Scholarship",
+           "Hipertension",
+           "Diabetes",
+           "Alcoholism",
+           "Handcap",
+           "SMS_received"), 
+         c("no_show", 
+           "age", 
+           "gender", 
+           "scheduled_day", 
+           "appointment_day",
+           "scholarship",
+           "hypertension",
+           "diabetes",
+           "alcoholism",
+           "handicap",
+           "sms_received"))
+# clean up a little bit
+data <- data[age %between% c(0, 95)]
+# for binary prediction with caret, the target variable must be a factor
+data[, no_show := factor(no_show, levels = c("Yes", "No"))]
+data[, no_show_num := ifelse(no_show == "Yes", 1, 0)]
+data[, handicap := ifelse(handicap > 0, 1, 0)]
+
+# create new variables
+data[, scheduled_day := as.Date(scheduled_day)]
+data[, appointment_day := as.Date(appointment_day)]
+data[, days_since_scheduled := as.integer(appointment_day - scheduled_day)]
+data <- data[days_since_scheduled > -1]
+```
+
+```{r}
 # [... create train and test sets ... ]
 
-model <- train(...)
+training_ratio <- 0.5 
+set.seed(1234)
+train_indices <- createDataPartition(y = data[["no_show"]],
+                                     times = 1,
+                                     p = training_ratio,
+                                     list = FALSE)
+data_train <- data[train_indices, ]
+data_test <- data[-train_indices, ]
+```
 
+```{r}
+
+```
+
+
+```{r}
 prediction <- predict.train(model, newdata = data_test, type = "prob")
 prediction_sqrt <- sqrt(prediction)
 prediction_sq <- prediction^2
