@@ -279,6 +279,8 @@ data[, days_category := cut(
 data[, age_category := cut(age, 
                            breaks = seq(0, 100, by = 5), 
                            include.lowest = TRUE)]
+
+data <- data[complete.cases(data)]
 ```
 
 ```{r}
@@ -295,18 +297,13 @@ data_test <- data[-train_indices, ]
 ```
 
 ```{r}
-# glmnet example for cross-validation, hold-out set AUCs
 train_control <- trainControl(method = "cv",
                               number = 5,
                               classProbs = TRUE,
-                              verboseIter = TRUE,
-                              summaryFunction = twoClassSummary) # necessary!
-
-tune_grid <- expand.grid("alpha" = c(0, 1),
-                         "lambda" = c(0.01, 0.001, 0.0001))
+                              summaryFunction = twoClassSummary)
 
 set.seed(1234)
-glmnet_model <- train(no_show ~ days_category + 
+model <- train(no_show ~ days_category + 
                                 poly(age, 3) +
                                 scholarship +
                                 gender +
@@ -314,10 +311,8 @@ glmnet_model <- train(no_show ~ days_category +
                                 diabetes,
                       data = data_train,
                       method = "glmnet",
-                      preProcess = c("center", "scale"),
                       trControl = train_control,
-                      tuneGrid = tune_grid,
-                      metric = "ROC")  # set it to ROC to choose models based on AUC
+                      metric = "ROC")  
 ```
 
 
