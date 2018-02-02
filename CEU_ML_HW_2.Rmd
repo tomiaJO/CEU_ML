@@ -267,7 +267,18 @@ data[, handicap := ifelse(handicap > 0, 1, 0)]
 data[, scheduled_day := as.Date(scheduled_day)]
 data[, appointment_day := as.Date(appointment_day)]
 data[, days_since_scheduled := as.integer(appointment_day - scheduled_day)]
-data <- data[days_since_scheduled > -1]
+data <- data
+
+data[, no_show_num := NULL]
+
+data[, days_category := cut(
+  days_since_scheduled, 
+  breaks = c(-1, 0, 1, 2, 5, 10, 30, Inf), 
+  include.lowest = TRUE)]
+
+data[, age_category := cut(age, 
+                           breaks = seq(0, 100, by = 5), 
+                           include.lowest = TRUE)]
 ```
 
 ```{r}
@@ -284,17 +295,90 @@ data_test <- data[-train_indices, ]
 ```
 
 ```{r}
+# glmnet example for cross-validation, hold-out set AUCs
+train_control <- trainControl(method = "cv",
+                              number = 5,
+                              classProbs = TRUE,
+                              verboseIter = TRUE,
+                              summaryFunction = twoClassSummary) # necessary!
 
+tune_grid <- expand.grid("alpha" = c(0, 1),
+                         "lambda" = c(0.01, 0.001, 0.0001))
+
+set.seed(1234)
+glmnet_model <- train(no_show ~ days_category + 
+                                poly(age, 3) +
+                                scholarship +
+                                gender +
+                                alcoholism +
+                                diabetes,
+                      data = data_train,
+                      method = "glmnet",
+                      preProcess = c("center", "scale"),
+                      trControl = train_control,
+                      tuneGrid = tune_grid,
+                      metric = "ROC")  # set it to ROC to choose models based on AUC
 ```
 
 
 ```{r}
 prediction <- predict.train(model, newdata = data_test, type = "prob")
 prediction_sqrt <- sqrt(prediction)
-prediction_sq <- prediction^2
+prediction_sq <- data.frame(prediction^2)
 ```
 
 #### Draw ROC curves for all three scores and calculate the AUC. How do they compare? Is it surprising in light of the interpretation of the AUC?
+
+```{r}
+# simple
+simple_prediction <- prediction(prediction$Yes, data_test[["no_show"]])
+simple_perf <- performance(simple_prediction, measure = "tpr", x.measure = "fpr")
+
+simple_roc_df <- data.table(
+  prediction = "simple",
+  FPR = simple_perf@x.values[[1]],
+  TPR = simple_perf@y.values[[1]],
+  cutoff = simple_perf@alpha.values[[1]]
+)
+
+# sqrt
+sqrt_prediction <- prediction(prediction_sqrt$Yes, data_test[["no_show"]])
+sqrt_perf <- performance(sqrt_prediction, measure = "tpr", x.measure = "fpr")
+
+sqrt_roc_df <- data.table(
+  prediction = "sqrt",
+  FPR = sqrt_perf@x.values[[1]],
+  TPR = sqrt_perf@y.values[[1]],
+  cutoff = sqrt_perf@alpha.values[[1]]
+)
+
+# sq
+sq_prediction <- prediction(prediction_sq$Yes, data_test[["no_show"]])
+sq_perf <- performance(sq_prediction, measure = "tpr", x.measure = "fpr")
+
+sq_roc_df <- data.table(
+  prediction = "sq",
+  FPR = sq_perf@x.values[[1]],
+  TPR = sq_perf@y.values[[1]],
+  cutoff = sq_perf@alpha.values[[1]]
+)
+```
+
+```{r}
+roc_df <- rbind(simple_roc_df, sqrt_roc_df)
+roc_df <- rbind(roc_df, sq_roc_df)
+```
+
+```{r}
+ggplot(roc_df) +
+  geom_line(aes(FPR, TPR, color = prediction), size = 2) +
+  geom_abline(intercept = 0, slope = 1,  linetype = "dotted", col = "black") +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
+  xlab("False Positive Rate") + ylab("True Positive Rate")
+```
+
+
 
 #### What is the key, common property of both the square root and the square functions that leads to this finding?
 
