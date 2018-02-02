@@ -27,8 +27,8 @@ RMSE <- function(x, true_x) sqrt(mean((x - true_x)^2))
 
 ```{r}
 
-# data <- fread("../../data/king_county_house_prices/kc_house_data.csv")
-data <- fread("kc_house_data.csv")
+data <- fread("../../data/king_county_house_prices/kc_house_data.csv")
+# data <- fread("kc_house_data.csv")
 
 data[, `:=`(floors = as.numeric(floors), zipcode = factor(zipcode))]
 data[, log_price := log(price)]
@@ -130,8 +130,8 @@ The approach used here is clearly more computational-friendly, however it comes 
 
 Explanations below each code piece:
 ```{r}
-#data <- fread("../../data/stackoverflow2017/survey_results_public_selected.csv")
-data <- fread("survey_results_public_selected.csv")
+data <- fread("../../data/stackoverflow2017/survey_results_public_selected.csv")
+#data <- fread("survey_results_public_selected.csv")
 ```
 
 Reads in data for the .csv file.

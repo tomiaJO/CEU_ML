@@ -1,0 +1,140 @@
+---
+title: "Machine Learning -  Homework 2"
+author: "Tamas Koncz"
+date: '2018-02-04'
+output:
+  html_notebook:
+    df_print: paged
+  html_document:
+    df_print: paged
+---
+
+```{r, message=FALSE}
+library(data.table)
+library(ggplot2)
+library(caret)
+library(rpart)
+library(skimr)
+
+theme_set(theme_bw())   # globally set ggplot theme
+
+set.seed(1234)
+RMSE <- function(x, true_x) sqrt(mean((x - true_x)^2))
+```
+
+#### 1. Predicting mental health problems in the tech sector (8 points)
+
+```{r} 
+data <- fread("survey_cleaned.csv")
+# data <- fread("../../data/mental-health-in-tech/survey_cleaned.csv")
+
+data <- data[ ,c("comments", "state","work_interfere") := NULL]
+data[, age := as.numeric(age)]
+data[ , treatment := factor(treatment, levels = c("Yes", "No"))]
+```
+
+##### Explore some predictors that can be used to predict treatment.
+
+```{r}
+data[, is_treated := ifelse(treatment == "Yes", 1, 0)]
+
+# gender
+dt <- data[ ,.(avg = sum(is_treated) / .N), keyby = gender]
+ggplot(data = dt) + geom_bar(aes(x = gender, y = avg), stat = "identity")
+
+# country
+data[, country_cnt := .N, by = country]
+
+data[, country := ifelse(country_cnt >= 20, country, "Other")]
+
+dt2 <- data[ ,.(avg = sum(is_treated) / .N), keyby = country]
+dt2 <- dt2[, country := factor(country, levels = dt2[order(-avg)][["country"]])]
+ggplot(data = dt2) + geom_bar(aes(x = country, y = avg), stat = "identity")
+
+# age
+data[, age := as.numeric(age)]
+dt3 <- data[ ,.(avg = sum(is_treated) / .N), keyby = age]
+ggplot() + 
+  geom_point(data = data, aes(x = factor(age), y = is_treated), stat = "identity")
+
+```
+
+
+##### Partition your data to 70% training and 30% test samples.
+
+```{r}
+training_ratio <- 0.7
+set.seed(1234)
+train_indices <- createDataPartition(y = data[["treatment"]],
+                                     times = 1,
+                                     p = training_ratio,
+                                     list = FALSE)
+data_train <- data[train_indices, ]
+data_test <- data[-train_indices, ]
+```
+
+
+##### Build models with glmnet and rpart that predict the binary outcome of treatment (you don’t have to use all variables if you don’t want to - experiment! Just use the same variables for both model families). Use cross-validation on the training set and use AUC as a selection measure (use metric = "ROC" in train and also don’t forget to use classProbs = TRUE, summaryFunction = twoClassSummary in  trainControl). Make sure to set the same seed before each call to train.
+
+```{r}
+fit_control <- trainControl(method = "cv", number = 10, classProbs = TRUE, summaryFunction = twoClassSummary)
+
+# rpart
+set.seed(1234)
+rpart_fit <- train(treatment ~ ., 
+                   data = data_train, 
+                   method = "rpart",
+                   metric = "ROC",
+                   trControl = fit_control)
+
+# glmnet
+set.seed(1234)
+glmnet_fit <- train(treatment ~ ., 
+                   data = data_train, 
+                   method = "glmnet",
+                   metric = "ROC",
+                   trControl = fit_control)
+```
+
+
+##### Compare models based on their predictive performance based on the cross-validation information (you can just use the mean AUC to select the best model).
+
+```{r}
+rpart_fit
+```
+
+```{r}
+glmnet_fit
+```
+
+##### Evaluate the best model on the test set: draw an ROC curve and calculate and interpret the AUC.
+
+##### If you have to choose a probability threshold to predict the outcome, what would you choose? At this threshold, how large are the true positive rate and the false positive rate? How many false positives and false negatives there are in the test sample?
+
+
+
+
+
+#### 2. Transformed scores (5 points)
+
+```{r}
+data <- fread("../../data/medical-appointments-no-show/no-show-data.csv")
+
+# [... apply the cleaning steps we did in class ...]
+# [... create train and test sets ... ]
+
+model <- train(...)
+
+prediction <- predict.train(model, newdata = data_test, type = "prob")
+prediction_sqrt <- sqrt(prediction)
+prediction_sq <- prediction^2
+```
+
+#### Draw ROC curves for all three scores and calculate the AUC. How do they compare? Is it surprising in light of the interpretation of the AUC?
+
+#### What is the key, common property of both the square root and the square functions that leads to this finding?
+
+#### Draw a calibration plot for all three scores separately:
+####      1. group people into bins based on predicted scores
+####      2. display on a scatterplot the mean of the predicted scores versus the actual share of people surviving
+#### How do they compare? Which score(s) can be regarded as well-calibrated probabilites?
