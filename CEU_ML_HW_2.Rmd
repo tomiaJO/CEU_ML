@@ -3,9 +3,9 @@ title: "Machine Learning -  Homework 2"
 author: "Tamas Koncz"
 date: '2018-02-04'
 output:
-  html_document:
-    df_print: paged
   html_notebook:
+    df_print: paged
+  html_document:
     df_print: paged
 ---
 
@@ -40,11 +40,17 @@ data[ , treatment := factor(treatment, levels = c("Yes", "No"))]
 ```
 
 ##### a. Explore some predictors that can be used to predict treatment.
+ 
+ 
+Observing the column descriptions in Kaggle, I decided to use only a subset of the variables for prediction - the reason for this was that with many columns, without further context, it was not possible to decide if they would actually be impacted by the target variable (e.g. I assume that people who have been involved with a medical condition, are much more aware of the related firm policies, etc.) 
+
 
 ```{r}
 data[, is_treated := ifelse(treatment == "Yes", 1, 0)]
 ```
 
+ 
+Rather than writing long summaries about what we could observe in the data, let the below plots show the important high-level mechanics: 
 
 ```{r}
 # gender
@@ -52,6 +58,7 @@ dt <- data[ ,.(avg = sum(is_treated) / .N), keyby = gender]
 p1 <- ggplot(data = dt) + 
   geom_bar(aes(x = gender, y = avg), stat = "identity") + 
   scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
+  ylab("Treated % (compared to total)") +
   coord_flip()
 ```
 
@@ -67,16 +74,17 @@ dt2 <- dt2[, country := factor(country, levels = dt2[order(-avg)][["country"]])]
 p2 <- ggplot(data = dt2) + 
   geom_bar(aes(x = country, y = avg), stat = "identity") + 
   scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
+  ylab("Treated % (compared to total)") +
   coord_flip()
 ```
 
 
-```{r, fig.width=15}
+```{r, fig.width=15, fig.height=6}
 grid.arrange(p1, p2, ncol = 2)
 ```
 
 
-```{r}
+```{r, fig.width=15, fig.height=6}
 # age
 data[, age := round(age)]
 data <- data[age >= 18]
@@ -85,10 +93,14 @@ data <- data[age <= 65]
 dt3 <- data[ ,.(avg = sum(is_treated) / .N), keyby = age]
 dt3 <- dt3[order(age)][, rollavg := rollmean(avg, 5, fill = NA)]
 ggplot() + 
-  geom_point(data = data, aes(x = age, y = is_treated), stat = "identity", alpha = .1, color = "blue")  +
-  geom_line(data = dt3, aes(x = age, y = rollavg), color = "orange", size = 1.5) +
+  geom_point(data = data, aes(x = age, y = is_treated, color = "blue"), stat = "identity", alpha = .1)  +
+  geom_line(data = dt3, aes(x = age, y = rollavg, color = "orange"), size = 1.5) +
   scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
-  scale_x_continuous(limits = c(20, 65), breaks = seq(20, 65, 5))
+  scale_x_continuous(limits = c(20, 65), breaks = seq(20, 65, 5)) +
+  ylab("Treated % (compared to total)") +
+  scale_colour_manual(name = 'Legend', 
+                      values = c('blue'='blue','orange'='orange'), 
+                      labels = c('Individual observations','Five-year rolling average'))
 
 ```
 
@@ -98,6 +110,7 @@ dt4 <- data[ ,.(avg = sum(is_treated) / .N), keyby = family_history]
 p4 <- ggplot(data = dt4) + 
   geom_bar(aes(x = family_history, y = avg), stat = "identity") +
   scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
+  ylab("Treated % (compared to total)") +
   coord_flip()
 ```
 
@@ -108,6 +121,7 @@ dt5 <- data[ ,.(avg = sum(is_treated) / .N), keyby = remote_work]
 p5 <- ggplot(data = dt5) + 
   geom_bar(aes(x = remote_work, y = avg), stat = "identity") +
   scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
+  ylab("Treated % (compared to total)") +
   coord_flip()
 ```
 
@@ -117,14 +131,17 @@ dt6 <- data[ ,.(avg = sum(is_treated) / .N), keyby = no_employees]
 p6 <- ggplot(data = dt6) + 
   geom_bar(aes(x = no_employees, y = avg), stat = "identity") +
   scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, .1)) +
+  ylab("Treated % (compared to total)") +
   coord_flip()
 ```
 
 
-```{r, fig.width=15}
+```{r, fig.width=15, fig.height=6}
 grid.arrange(p4, p5, p6, ncol = 3)
 ```
 
+
+Keep only the observations that we'll use for prediction: 
 
 ```{r}
 data <- data[, c("treatment", "no_employees", "self_employed", 
@@ -132,7 +149,8 @@ data <- data[, c("treatment", "no_employees", "self_employed",
                   "gender")]
 ```
 
-
+ 
+ 
 ##### b. Partition your data to 70% training and 30% test samples.
 
 ```{r}
@@ -214,12 +232,29 @@ ggplot(glmnet_roc_df) +
 glmnet_AUC <- performance(glmnet_prediction, measure = "auc")@y.values[[1]]
 glmnet_AUC
 ```
+If we were to take a random positive and a random negative observation, the model is expected to assign a higher probability to the "treated" case in ~71% of the time.
 
+The model does fairly well at picking up true positives - however, AUC in itself does not tell much about performance (higher is better obviosuly, but what is actually good is very domain specific).
 
 ##### If you have to choose a probability threshold to predict the outcome, what would you choose? At this threshold, how large are the true positive rate and the false positive rate? How many false positives and false negatives there are in the test sample?
+ 
+Selecting a good threshold depends on the actual use case. Let's say that we are after predicting people who should seek medical help in our organisation - missing someone puts them in a wrong spot, but spending too many people to the doctor could be a significant burden. Hence, our preferences are symmetric for false positives and false negatives.
+
+```{r, fig.align='center'}
+# built-in plot method
+plot(performance(glmnet_prediction, "tpr", "fpr"), colorize=TRUE) 
+```
 
 
+In this case, I'd choose a cutoff beteen ~0.45 - 0.55 (there is no significant performance difference in this range). The TPR is around 0.6, while the FPR is below 0.2, a well-balanced trade-off for our case.
 
+```{r}
+test_prediction <- ifelse(test_prediction_glmnet$Yes >= 0.50, "Yes", "No")
+test_prediction <- factor(test_prediction, levels = c("Yes", "No"))
+confusionMatrix(test_prediction, data_test[["treatment"]])
+```
+
+Based on the confusion matrix, the number of false positives is 23, while the number of false negatives is 96 in the test sample. 
 
 
 #### 2. Transformed scores (5 points)
@@ -322,7 +357,7 @@ prediction_sqrt <- sqrt(prediction)
 prediction_sq <- data.frame(prediction^2)
 ```
 
-#### Draw ROC curves for all three scores and calculate the AUC. How do they compare? Is it surprising in light of the interpretation of the AUC?
+#### a. Draw ROC curves for all three scores and calculate the AUC. How do they compare? Is it surprising in light of the interpretation of the AUC?
 
 ```{r}
 # simple
@@ -375,9 +410,9 @@ ggplot(roc_df) +
 
 
 
-#### What is the key, common property of both the square root and the square functions that leads to this finding?
+#### b. What is the key, common property of both the square root and the square functions that leads to this finding?
 
-#### Draw a calibration plot for all three scores separately:
+#### c. Draw a calibration plot for all three scores separately:
 ####      1. group people into bins based on predicted scores
 ####      2. display on a scatterplot the mean of the predicted scores versus the actual share of people surviving
 
