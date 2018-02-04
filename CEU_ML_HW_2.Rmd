@@ -3,9 +3,9 @@ title: "Machine Learning -  Homework 2"
 author: "Tamas Koncz"
 date: '2018-02-04'
 output:
-  html_notebook:
-    df_print: paged
   html_document:
+    df_print: paged
+  html_notebook:
     df_print: paged
 ---
 
@@ -30,9 +30,9 @@ RMSE <- function(x, true_x) sqrt(mean((x - true_x)^2))
 #### 1. Predicting mental health problems in the tech sector (8 points)
 
 ```{r} 
-data <- fread("survey_cleaned.csv")
+# data <- fread("survey_cleaned.csv")
 
-# data <- fread("../../data/mental-health-in-tech/survey_cleaned.csv")
+data <- fread("../../data/mental-health-in-tech/survey_cleaned.csv")
 
 data <- data[ ,c("comments", "state","work_interfere") := NULL]
 data[, age := as.numeric(age)]
@@ -260,8 +260,8 @@ Based on the confusion matrix, the number of false positives is 23, while the nu
 #### 2. Transformed scores (5 points)
 
 ```{r}
-data <- fread("no-show-data.csv")
-# data <- fread("../../data/medical-appointments-no-show/no-show-data.csv")
+# data <- fread("no-show-data.csv")
+data <- fread("../../data/medical-appointments-no-show/no-show-data.csv")
 ```
 
 ```{r}
@@ -408,9 +408,12 @@ ggplot(roc_df) +
   xlab("False Positive Rate") + ylab("True Positive Rate")
 ```
 
+As it's visible from the above, the original predictions, and the two after transformations create the same ROC curves (lines fall on each other). 
 
 
 #### b. What is the key, common property of both the square root and the square functions that leads to this finding?
+
+If we do a symmetrical transformation like square functions, that also keeps probabilities in the 0-1 range, the shape of the ROC curve won't change - as that is driven by the ratio of TPR vs FPR, both of which are impacted by these transformations. However, if we would plot the relevant probabilities as well, they would move around the chart.
 
 #### c. Draw a calibration plot for all three scores separately:
 ####      1. group people into bins based on predicted scores
@@ -434,11 +437,13 @@ calibration <- actual_vs_predicted[, .(mean_actual = mean(actual),
                                        mean_predicted = mean(predicted),
                                        num_obs = .N),
                                    keyby = .(score_category)]
-ggplot(calibration,
+p1 <- ggplot(calibration,
        aes(x = mean_actual, y = mean_predicted, size = num_obs)) +
   geom_point() +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
-  ylim(0, 1) + xlim(0, 1)
+  ylim(0, 1) + xlim(0, 1) +
+  xlab("Actual frequencies") + ylab("Predicted probabilities") +
+  labs(title= "No transformation")
 ```
 
 
@@ -455,12 +460,43 @@ calibration <- actual_vs_predicted[, .(mean_actual = mean(actual),
                                        mean_predicted = mean(predicted),
                                        num_obs = .N),
                                    keyby = .(score_category)]
-ggplot(calibration,
+p2 <- ggplot(calibration,
        aes(x = mean_actual, y = mean_predicted, size = num_obs)) +
   geom_point() +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
-  ylim(0, 1) + xlim(0, 1)
+  ylim(0, 1) + xlim(0, 1) +
+  xlab("Actual frequencies") + ylab("Predicted probabilities") +
+  labs(title= "SQRT transformation")
+```
+
+```{r}
+score_sq <- prediction_sq$Yes
+
+actual_vs_predicted <- data.table(actual = truth_numeric,
+                                  predicted = score_sq)
+
+actual_vs_predicted[, score_category := cut(predicted,
+                                    seq(0, 0.6, 0.05),
+                                    include.lowest = TRUE)]
+calibration <- actual_vs_predicted[, .(mean_actual = mean(actual),
+                                       mean_predicted = mean(predicted),
+                                       num_obs = .N),
+                                   keyby = .(score_category)]
+p3 <- ggplot(calibration,
+       aes(x = mean_actual, y = mean_predicted, size = num_obs)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  ylim(0, 1) + xlim(0, 1) +
+  xlab("Actual frequencies") + ylab("Predicted probabilities") +
+  labs(title= "SQ transformation")
+```
+
+```{r, fig.width=15, fig.height=5}
+grid.arrange(p1, p2, p3, ncol = 3)
 ```
 
 
 #### How do they compare? Which score(s) can be regarded as well-calibrated probabilites?
+
+As we can see, the predictions with no transformation can be seen as well-calibrated (apart from a small group of high-yes-rate observations, which is neglible). The other two are not well-calibrated, however this should be no surprise - we have transformed the predicted probabilities, but the original frequencies did not change, hence they will be out of sync.
+
