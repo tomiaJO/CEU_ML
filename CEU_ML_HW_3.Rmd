@@ -1,0 +1,70 @@
+---
+title: "Machine Learning -  Homework 3"
+author: "Tamas Koncz"
+date: '2018-02-11'
+output:
+  html_document:
+    df_print: paged
+  html_notebook:
+    df_print: paged
+---
+
+```{r, message=FALSE}
+library(data.table)
+library(ggplot2)
+library(gridExtra)
+library(caret)
+library(rpart)
+library(skimr)
+library(ROCR)
+library(zoo)
+
+library(datasets)
+library(MASS)
+library(ISLR)
+
+options(scipen = 999)
+
+theme_set(theme_bw())   # globally set ggplot theme
+
+set.seed(1234)
+RMSE <- function(x, true_x) sqrt(mean((x - true_x)^2))
+```
+
+#### 1. PCA for supervised learning (6 points)
+
+```{r}
+data <- data.table(Boston)
+
+strCRIM <- "per capita crime rate by town"
+strZN <- "proportion of residential land zoned for lots over 25,000 sq.ft."
+strINDUS <- "proportion of non-retail business acres per town."
+strCHAS <- "Charles River dummy variable (1 if tract bounds river; 0 otherwise)"
+strNOX <- "nitric oxides concentration (parts per 10 million)"
+strRM <- "average number of rooms per dwelling"
+strAGE <- "proportion of owner-occupied units built prior to 1940"
+strDIS <- "weighted distances to five Boston employment centres"
+strRAD <- "index of accessibility to radial highways"
+strTAX <- "full-value property-tax rate per $10,000"
+strPTRATIO <- "pupil-teacher ratio by town"
+strB <- "1000(Bk - 0.63)^2 where Bk is the proportion of blacks by town"
+strLSTAT <- "% lower status of the population"
+strMEDV <- "Median value of owner-occupied homes in $1000's"
+```
+
+##### a. short exploration of data and find possible predictors of the target variable.
+
+```{r}
+skim(data)
+```
+
+
+##### b. Create a training and a test set of 50%.
+
+##### c. Use a linear regression to predict crim and use 10-fold cross validation to assess the predictive power.
+
+##### d. Try to improve the model by using PCA for dimensionality reduction. Center and scale your variables and use pcr to conduct a search for the optimal number of principal components. Does PCA improve the fit over the simple linear model?
+
+##### e. Use penalized linear models for the same task. Make sure to include ridge (alpha = 0) to your tune grid. How does the best model compare to that found in d)? Would pre-processing via PCA help this model? (add pca to preProcess). Why do you think the answer can be expected?
+
+##### f. Evaluate your preferred model on the test set.
