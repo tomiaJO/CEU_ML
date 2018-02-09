@@ -152,13 +152,15 @@ RMSE(pred, data_test$crim)
 
 ```{r}
 data <- USArrests
-# data <- data.table(data, keep.rownames = TRUE)
-# setnames(data, "rn", "state")
+data <- data.table(data, keep.rownames = TRUE)
+setnames(data, "rn", "state")
 print(skim(data))
 ```
 
 ##### a. Determine the optimal number of clusters as indicated by NbClust heuristics.
 ```{r}
+data_features <- data[, .(Assault, UrbanPop, Murder, Rape)]
+
 nb <- NbClust(data_features, method = "kmeans", 
               min.nc = 2, max.nc = 10, index = "all")
 ```
