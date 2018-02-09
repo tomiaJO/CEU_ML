@@ -22,6 +22,8 @@ library(zoo)
 library(datasets)
 library(MASS)
 library(ISLR)
+library(NbClust)
+library(factoextra)
 
 options(scipen = 999)
 
@@ -31,7 +33,7 @@ set.seed(1234)
 RMSE <- function(x, true_x) sqrt(mean((x - true_x)^2))
 ```
 
-#### 1. PCA for supervised learning (6 points)
+### 1. PCA for supervised learning (6 points)
 
 ```{r}
 data <- data.table(Boston)
@@ -146,3 +148,28 @@ pred <- predict(ridge_fit, newdata = data_test)
 RMSE(pred, data_test$crim)
 ```
 
+### 2. Clustering on the USArrests dataset (5 points)
+
+```{r}
+data <- USArrests
+# data <- data.table(data, keep.rownames = TRUE)
+# setnames(data, "rn", "state")
+print(skim(data))
+```
+
+##### a. Determine the optimal number of clusters as indicated by NbClust heuristics.
+```{r}
+nb <- NbClust(data_features, method = "kmeans", 
+              min.nc = 2, max.nc = 10, index = "all")
+```
+
+##### b. Use the k-means method to cluster states using the number of clusters found in a) and anything else that you think that makes sense. Plot observations colored by clusters in the space of urban population and another (crime-related) variable. (See example code from class, use  factor(km$cluster) to create a vector of class labels).
+
+##### c. Perform PCA and get the first two principal component coordinates for all observations by
+
+```{r}
+pca_result <- prcomp(data, scale. = TRUE)
+first_two_pc <- data.table(pca_result$x[, 1:2])
+```
+
+##### Plot clusters in the coordinate system defined by the first two principal components. How do clusters relate to these?
