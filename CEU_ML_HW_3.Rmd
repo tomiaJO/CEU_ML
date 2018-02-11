@@ -57,7 +57,7 @@ strMEDV <- "Median value of owner-occupied homes in $1000's"
 ##### a. short exploration of data and find possible predictors of the target variable.
 
 ```{r}
-skim(data)
+print(skim(data))
 ```
 
 
@@ -158,20 +158,96 @@ print(skim(data))
 ```
 
 ##### a. Determine the optimal number of clusters as indicated by NbClust heuristics.
-```{r}
-data_features <- data[, .(Assault, UrbanPop, Murder, Rape)]
+
+Given our variables are not all measured on the same scale, first step is to standardize them, otherwise ones with higher 'abosolute' variance may get overweighted by the algorithm.
+Then we can move onto finding the ideal number of cluster with the NbClust method:
+
+```{r, fig.height= 4, fig.align= 'center'}
+data_features <- data[ ,.(Assault = scale(Assault, scale = TRUE, center = TRUE),
+                          UrbanPop = scale(UrbanPop, scale = TRUE, center = TRUE),
+                          Murder = scale(Murder, scale = TRUE, center = TRUE),
+                          Rape = scale(Rape, scale = TRUE, center = TRUE)
+                          )]
 
 nb <- NbClust(data_features, method = "kmeans", 
-              min.nc = 2, max.nc = 10, index = "all")
+              min.nc = 2, max.nc = 10, index = "alllong")
 ```
 
+
+```{r, fig.height= 4, fig.width = 6, fig.align= 'center'}
+fviz_nbclust(nb) + theme_minimal()
+```
+
+According to the majority rule, as well as based on the D index values, the best choice for number of clusters is 2.
+
 ##### b. Use the k-means method to cluster states using the number of clusters found in a) and anything else that you think that makes sense. Plot observations colored by clusters in the space of urban population and another (crime-related) variable. (See example code from class, use  factor(km$cluster) to create a vector of class labels).
+
+Running kmeans (k=2) on the already normalized variable set, with 25 iterations:
+```{r}
+km <- kmeans(data_features, centers = 2, nstart= 25)
+```
+
+Let's see the selected cluster centers:
+
+```{r}
+print(km$centers)
+```
+
+And the distribtion of cases in each cluster:
+
+```{r}
+print(table(km$cluster))
+```
+
+
+```{r, fig.width= 15}
+data_w_clusters <- cbind(data_features, 
+                         data.table("cluster" = factor(km$cluster)))
+
+centers <- data.table(km$centers)
+
+
+p1 <- ggplot() + 
+  geom_point(data= data_w_clusters, 
+       aes(x = UrbanPop, 
+           y = Assault, 
+           color = cluster), size = 2) +
+  geom_point(data= centers, 
+       aes(x = UrbanPop, 
+           y = Assault), size = 5, color = "purple") +
+  scale_size(guide = 'none') + 
+  scale_color_discrete(guide = 'none')
+
+p2 <- ggplot() + 
+  geom_point(data= data_w_clusters, 
+       aes(x = UrbanPop, 
+           y = Murder, 
+           color = cluster), size = 2) +
+  geom_point(data= centers, 
+       aes(x = UrbanPop, 
+           y = Murder), size = 5, color = "purple") +
+  scale_size(guide = 'none') +
+  scale_color_discrete(guide = 'none')
+
+p3 <- ggplot() + 
+  geom_point(data= data_w_clusters, 
+       aes(x = UrbanPop, 
+           y = Rape, 
+           color = cluster), size = 2) +
+  geom_point(data= centers, 
+       aes(x = UrbanPop, 
+           y = Rape), size = 5, color = "purple") +
+  scale_size(guide = 'none')
+
+grid.arrange(p1, p2, p3, ncol = 3)
+```
+
 
 ##### c. Perform PCA and get the first two principal component coordinates for all observations by
 
 ```{r}
-pca_result <- prcomp(data, scale. = TRUE)
-first_two_pc <- data.table(pca_result$x[, 1:2])
+#pca_result <- prcomp(data, scale. = TRUE)
+#first_two_pc <- data.table(pca_result$x[, 1:2])
 ```
 
 ##### Plot clusters in the coordinate system defined by the first two principal components. How do clusters relate to these?
