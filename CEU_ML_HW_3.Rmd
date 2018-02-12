@@ -60,6 +60,9 @@ strMEDV <- "Median value of owner-occupied homes in $1000's"
 print(skim(data))
 ```
 
+```{r, fig.width=5, fig.height=3, fig.align='center'}
+ggplot(data, aes(x= crim)) + geom_histogram()
+```
 
 ##### b. Create a training and a test set of 50%.
 ```{r}
@@ -84,8 +87,7 @@ lm_fit <- train(crim ~ .,
                    data = data_train,
                    trControl = train_control)
 
-mean(data.table(lm_fit$results["RMSE"])$RMSE)
-#TODO: plot 10 cases + avg line
+print(mean(data.table(lm_fit$results["RMSE"])$RMSE))
 ```
 
 
@@ -102,11 +104,11 @@ pcr_fit <- train(crim ~ . ,
                 tuneGrid = tune_grid,
                 preProcess = c("center", "scale")
                 )
-pcr_fit
 
-#mean(data.table(pcr_fit$resample["RMSE"])$RMSE)
-#TODO: plot 10 cases + avg line
+print(mean(data.table(pcr_fit$resample["RMSE"])$RMSE))
 ```
+
+The fit (measured by avg. RMSE) remains the same - this is due to the fact that the final model is virtually the same, as Caret find the optimal fit with 13 components, 1 for each variable. Using less components would increase the error rate.
 
 ##### e. Use penalized linear models for the same task. Make sure to include ridge (alpha = 0) to your tune grid. How does the best model compare to that found in d)? Would pre-processing via PCA help this model? (add pca to preProcess). Why do you think the answer can be expected?
 
@@ -123,9 +125,10 @@ ridge_fit <- train(crim ~ .,
                     tuneGrid = tune_grid,
                     preProcess = c("center", "scale"))
 
-mean(data.table(ridge_fit$results["RMSE"])$RMSE)
-#TODO: plot 10 cases + avg line
+print(mean(data.table(ridge_fit$results["RMSE"])$RMSE))
 ```
+
+There is a slight improvement, which can be attributed to the penalty term applied to avoid overfitting.
 
 ```{r}
 set.seed(93)
@@ -136,10 +139,10 @@ ridge_pca_fit <- train(crim ~ .,
                     tuneGrid = tune_grid,
                     preProcess = c("center", "scale", "pca"))
 
-mean(data.table(ridge_pca_fit$results["RMSE"])$RMSE)
-#TODO: plot 10 cases + avg line
+print(mean(data.table(ridge_pca_fit$results["RMSE"])$RMSE))
 ```
 
+The model does worse by a thin margin. PCA helps to reduce multicollinearity in the dataset by shrinking features, while ridge will penalize the smallest-variance feature.   
 
 ##### f. Evaluate your preferred model on the test set.
 
@@ -147,6 +150,10 @@ mean(data.table(ridge_pca_fit$results["RMSE"])$RMSE)
 pred <- predict(ridge_fit, newdata = data_test)
 RMSE(pred, data_test$crim)
 ```
+
+The error rate is ~2x the mean value of the crim variable - this could be considered large.
+However, let's remember that the data is heavily skewed - given there were no transformation performed (e.g. log), we can't expect the linear regression to well fit for all ranges in the data.  
+
 
 ### 2. Clustering on the USArrests dataset (5 points)
 
@@ -246,8 +253,22 @@ grid.arrange(p1, p2, p3, ncol = 3)
 ##### c. Perform PCA and get the first two principal component coordinates for all observations by
 
 ```{r}
-#pca_result <- prcomp(data, scale. = TRUE)
-#first_two_pc <- data.table(pca_result$x[, 1:2])
+pca_result <- prcomp(data_features) #scaling was performed already earlier
+first_two_pc <- data.table(pca_result$x[, 1:2])
 ```
 
 ##### Plot clusters in the coordinate system defined by the first two principal components. How do clusters relate to these?
+
+```{r, fig.width= 5, fig.height=4, fig.align='center'}
+data <- cbind(data, first_two_pc)
+data <- cbind(data, data.table("cluster" = factor(km$cluster)))
+
+ggplot() + 
+  geom_point(data= data, 
+       aes(x = PC1, 
+           y = PC2, 
+           color = cluster), size = 2) +
+  scale_size(guide = 'none')
+```
+
+We can observe that the data is nicely separated by PC1 - PC2 has not much differenciating power to separate the clusters.
